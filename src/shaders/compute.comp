@@ -21,10 +21,21 @@ struct Blade {
     vec4 up;
 };
 
-// TODO: Add bindings to:
-// 1. Store the input blades
-// 2. Write out the culled blades
-// 3. Write the total number of blades remaining
+// Storage buffers
+layout(set = 2, binding = 0) buffer Blades {
+    Blade blades[];
+};
+
+layout(set = 2, binding = 1) buffer CulledBlades {
+    Blade culled[];
+};
+
+layout(set = 2, binding = 2) buffer NumBlades {
+    uint vertexCount;   // number of blades available
+    uint instanceCount; // = 1
+    uint firstVertex;   // = 0
+    uint firstInstance; // = 0
+} numBlades;
 
 // The project is using vkCmdDrawIndirect to use a buffer as the arguments for a draw call
 // This is sort of an advanced feature so we've showed you what this buffer should look like
@@ -43,11 +54,74 @@ bool inBounds(float value, float bounds) {
 void main() {
 	// Reset the number of blades to 0
 	if (gl_GlobalInvocationID.x == 0) {
+		// For culling stage (later), reset if needed
 		// numBlades.vertexCount = 0;
 	}
 	barrier(); // Wait till all threads reach this point
 
-    // TODO: Apply forces on every blade and update the vertices in the buffer
+    uint i = gl_GlobalInvocationID.x;
+    // Guard against over-dispatch
+    if (i >= numBlades.vertexCount) return;
+
+    Blade b = blades[i];
+
+    vec3 V0 = b.v0.xyz;
+    float orient = b.v0.w;
+    vec3 V1 = b.v1.xyz;
+    float height = b.v1.w;
+    vec3 V2 = b.v2.xyz;
+    float width = b.v2.w;
+    vec3 up = normalize(b.up.xyz);
+    float stiffness = b.up.w;
+
+    vec3 base = vec3(1.0, 0.0, 0.0);
+    if (abs(dot(base, up)) > 0.99) base = vec3(0.0, 0.0, 1.0);
+    vec3 n1 = normalize(base - dot(base, up) * up);
+    vec3 n2 = normalize(cross(up, n1));
+    vec3 forward = normalize(cos(orient) * n1 + sin(orient) * n2);
+
+    // Gravity
+    vec4 D = vec4(0.0, -1.0, 0.0, 9.81); // direction.xyz, magnitude.w
+    vec3 gE = normalize(D.xyz) * D.w;
+    float gLen = length(gE);
+    vec3 gF = 0.25 * gLen * forward; // front gravity term
+    vec3 gravity = gE + gF;
+
+    // Recovery
+    vec3 iV2 = V0 + up * height;
+    vec3 recovery = (iV2 - V2) * stiffness;
+
+    // Wind direction varying with position and time
+    float t = totalTime;
+    vec3 windDir = normalize(vec3(
+        sin(0.17 * V0.x + 1.3 * t),
+        0.0,
+        cos(0.19 * V0.z + 1.1 * t)));
+    float align = max(0.0, dot(forward, windDir));
+    align = align * align; // stronger effect when aligned
+    vec3 wind = windDir * (4.0 * align);
+
+    // Accumulate forces and integrate
+    vec3 total = gravity + recovery + wind;
+    vec3 dV2 = total * deltaTime;
+    vec3 newV2 = V2 + dV2;
+
+    // Corrections (Section 5.2 inspired)
+    // 1) Prevent under-ground penetration
+    if (newV2.y < V0.y) newV2.y = V0.y;
+    // 2) Enforce constant blade length: |V2 - V0| = height
+    vec3 dir = newV2 - V0;
+    float L = length(dir);
+    if (L > 1e-6) {
+        newV2 = V0 + dir * (height / L);
+    } else {
+        newV2 = V0 + up * height;
+    }
+
+    b.v2 = vec4(newV2, width);
+    b.v1 = vec4(iV2, height);
+
+    blades[i] = b;
 
 	// TODO: Cull blades that are too far away or not in the camera frustum and write them
 	// to the culled blades buffer
