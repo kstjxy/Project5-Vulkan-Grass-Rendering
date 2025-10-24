@@ -104,6 +104,8 @@ int main() {
 
     VkImage grassImage;
     VkDeviceMemory grassImageMemory;
+    VkImage bladesImage;
+    VkDeviceMemory bladesImageMemory;
     Image::FromFile(device,
         transferCommandPool,
         "images/grass.jpg",
@@ -114,6 +116,19 @@ int main() {
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         grassImage,
         grassImageMemory
+    );
+
+    // Load the grass texture to be used for blades
+    Image::FromFile(device,
+        transferCommandPool,
+        "images/grass_2.jpg",
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        bladesImage,
+        bladesImageMemory
     );
 
     float planeDim = 15.f;
@@ -130,6 +145,8 @@ int main() {
     plane->SetTexture(grassImage);
     
     Blades* blades = new Blades(device, transferCommandPool, planeDim);
+    // Use the new grass texture for blades
+    blades->SetTexture(bladesImage);
 
     vkDestroyCommandPool(device->GetVkDevice(), transferCommandPool, nullptr);
 
@@ -153,6 +170,8 @@ int main() {
 
     vkDestroyImage(device->GetVkDevice(), grassImage, nullptr);
     vkFreeMemory(device->GetVkDevice(), grassImageMemory, nullptr);
+    vkDestroyImage(device->GetVkDevice(), bladesImage, nullptr);
+    vkFreeMemory(device->GetVkDevice(), bladesImageMemory, nullptr);
 
     delete scene;
     delete plane;

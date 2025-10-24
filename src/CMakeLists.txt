@@ -34,10 +34,26 @@ foreach(SHADER_SOURCE ${SHADER_SOURCES})
     set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
 
     if(WIN32)
+        # Resolve glslangValidator path robustly
+        if(NOT DEFINED GLSLANG_VALIDATOR)
+          set(GLSLANG_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
+          if(NOT EXISTS "${GLSLANG_VALIDATOR}")
+            set(GLSLANG_VALIDATOR "$ENV{VK_SDK_PATH}/Bin/glslangValidator.exe")
+          endif()
+          if(NOT EXISTS "${GLSLANG_VALIDATOR}")
+            file(GLOB _VKSDK_HINT "C:/VulkanSDK/*/Bin/glslangValidator.exe")
+            list(SORT _VKSDK_HINT)
+            list(REVERSE _VKSDK_HINT)
+            list(LENGTH _VKSDK_HINT _VKSDK_HINT_LEN)
+            if(_VKSDK_HINT_LEN GREATER 0)
+              list(GET _VKSDK_HINT 0 GLSLANG_VALIDATOR)
+            endif()
+          endif()
+        endif()
         get_filename_component(fname ${SHADER_SOURCE} NAME)
         add_custom_target(${fname}.spv
             COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} && 
-            $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv -g
+            "${GLSLANG_VALIDATOR}" -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv -g
             SOURCES ${SHADER_SOURCE}
         )
         ExternalTarget("Shaders" ${fname}.spv)
@@ -55,3 +71,18 @@ target_include_directories(vulkan_grass_rendering PRIVATE
 )
 
 InternalTarget("" vulkan_grass_rendering)
+
+# Help Visual Studio run with the correct working directory when debugging
+if (MSVC)
+  set_property(TARGET vulkan_grass_rendering PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_grass_rendering>")
+endif()
+
+# Ensure runtime has required resources (shaders and images) next to the executable
+if (WIN32)
+  add_custom_command(TARGET vulkan_grass_rendering POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:vulkan_grass_rendering>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:vulkan_grass_rendering>/images"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders" "$<TARGET_FILE_DIR:vulkan_grass_rendering>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_BINARY_DIR}/images" "$<TARGET_FILE_DIR:vulkan_grass_rendering>/images"
+  )
+endif()
