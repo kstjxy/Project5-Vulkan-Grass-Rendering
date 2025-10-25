@@ -1,5 +1,6 @@
 #include <vulkan/vulkan.h>
 #include <iostream>
+#include <string>
 #include "Instance.h"
 #include "Window.h"
 #include "Renderer.h"
@@ -188,6 +189,24 @@ int main() {
         glfwPollEvents();
         scene->UpdateTime();
         renderer->Frame();
+
+        // FPS in window title
+        static double acc = 0.0;
+        static int frames = 0;
+        static double last = glfwGetTime();
+        double now = glfwGetTime();
+        double dt = now - last;
+        last = now;
+        acc += dt;
+        frames++;
+        if (acc >= 1.0) {
+            double fps = frames / acc;
+            double ms = 1000.0 / (fps > 0.0 ? fps : 1.0);
+            std::string title = std::string("Vulkan Grass Rendering - ") + std::to_string((int)fps) + " FPS (" + std::to_string(ms).substr(0, 5) + " ms)";
+            glfwSetWindowTitle(GetGLFWWindow(), title.c_str());
+            acc = 0.0;
+            frames = 0;
+        }
     }
 
     vkDeviceWaitIdle(device->GetVkDevice());
