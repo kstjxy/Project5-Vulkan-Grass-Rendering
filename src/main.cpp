@@ -1,4 +1,5 @@
 #include <vulkan/vulkan.h>
+#include <iostream>
 #include "Instance.h"
 #include "Window.h"
 #include "Renderer.h"
@@ -10,6 +11,7 @@ Device* device;
 SwapChain* swapChain;
 Renderer* renderer;
 Camera* camera;
+Scene* scene;
 
 namespace {
     void resizeCallback(GLFWwindow* window, int width, int height) {
@@ -61,6 +63,27 @@ namespace {
             camera->UpdateOrbit(0.0f, 0.0f, deltaZ);
 
             previousY = yPosition;
+        }
+    }
+
+    void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+        if (action != GLFW_PRESS) return;
+        if (!scene) return;
+        switch (key) {
+            case GLFW_KEY_O:
+                scene->ToggleOrientationCull();
+                std::cout << "Orientation cull: " << (scene->IsOrientationCull() ? "ON" : "OFF") << std::endl;
+                break;
+            case GLFW_KEY_F:
+                scene->ToggleFrustumCull();
+                std::cout << "Frustum cull: " << (scene->IsFrustumCull() ? "ON" : "OFF") << std::endl;
+                break;
+            case GLFW_KEY_D:
+                scene->ToggleDistanceCull();
+                std::cout << "Distance cull: " << (scene->IsDistanceCull() ? "ON" : "OFF") << std::endl;
+                break;
+            default:
+                break;
         }
     }
 }
@@ -150,7 +173,7 @@ int main() {
 
     vkDestroyCommandPool(device->GetVkDevice(), transferCommandPool, nullptr);
 
-    Scene* scene = new Scene(device);
+    scene = new Scene(device);
     scene->AddModel(plane);
     scene->AddBlades(blades);
 
@@ -159,6 +182,7 @@ int main() {
     glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
     glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
     glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
+    glfwSetKeyCallback(GetGLFWWindow(), keyCallback);
 
     while (!ShouldQuit()) {
         glfwPollEvents();

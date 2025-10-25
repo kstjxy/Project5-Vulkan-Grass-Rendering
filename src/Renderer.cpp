@@ -1008,8 +1008,32 @@ void Renderer::RecordComputeCommandBuffer() {
     // Bind descriptor set for time uniforms
     vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 1, 1, &timeDescriptorSet, 0, nullptr);
 
-    // For each group of blades bind its descriptor set and dispatch
+    // For each group of blades bind its descriptor set, clear indirect count, and dispatch
     for (uint32_t j = 0; j < scene->GetBlades().size(); ++j) {
+        // Clear vertexCount (first 4 bytes) of the indirect args buffer to 0
+        VkBuffer numBuf = scene->GetBlades()[j]->GetNumBladesBuffer();
+        vkCmdFillBuffer(computeCommandBuffer, numBuf, 0, sizeof(uint32_t), 0);
+
+        // Ensure transfer write is visible to compute shader
+        VkBufferMemoryBarrier clearBarrier = {};
+        clearBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        clearBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        clearBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        uint32_t fam = device->GetQueueIndex(QueueFlags::Compute);
+        clearBarrier.srcQueueFamilyIndex = fam;
+        clearBarrier.dstQueueFamilyIndex = fam;
+        clearBarrier.buffer = numBuf;
+        clearBarrier.offset = 0;
+        clearBarrier.size = sizeof(uint32_t);
+        vkCmdPipelineBarrier(
+            computeCommandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0,
+            0, nullptr,
+            1, &clearBarrier,
+            0, nullptr);
+
         vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 2, 1, &computeDescriptorSets[j], 0, nullptr);
         uint32_t groups = (NUM_BLADES + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
         vkCmdDispatch(computeCommandBuffer, groups, 1, 1);
@@ -1093,7 +1117,7 @@ void Renderer::RecordCommandBuffers() {
                 b1.srcQueueFamilyIndex = srcFamily;
                 b1.dstQueueFamilyIndex = dstFamily;
             }
-            b1.buffer = scene->GetBlades()[j]->GetBladesBuffer();
+            b1.buffer = scene->GetBlades()[j]->GetCulledBladesBuffer();
             b1.offset = 0;
             b1.size = VK_WHOLE_SIZE;
         }
@@ -1135,13 +1159,14 @@ void Renderer::RecordCommandBuffers() {
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, grassPipelineLayout, 0, 1, &cameraDescriptorSet, 0, nullptr);
 
         for (uint32_t j = 0; j < scene->GetBlades().size(); ++j) {
-            VkBuffer vertexBuffers[] = { scene->GetBlades()[j]->GetBladesBuffer() };
+            VkBuffer vertexBuffers[] = { scene->GetBlades()[j]->GetCulledBladesBuffer() };
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
             // Bind grass descriptor set (set 1: model + sampler)
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, grassPipelineLayout, 1, 1, &grassDescriptorSets[j], 0, nullptr);
 
-            vkCmdDraw(commandBuffers[i], NUM_BLADES, 1, 0, 0);
+            // Indirect draw: count provided by compute shader (vertexCount)
+            vkCmdDrawIndirect(commandBuffers[i], scene->GetBlades()[j]->GetNumBladesBuffer(), 0, 1, sizeof(BladeDrawIndirect));
         }
 
         // End render pass

@@ -43,3 +43,27 @@ Scene::~Scene() {
     vkDestroyBuffer(device->GetVkDevice(), timeBuffer, nullptr);
     vkFreeMemory(device->GetVkDevice(), timeBufferMemory, nullptr);
 }
+
+void Scene::SetOrientationCull(bool enabled) {
+    time.enableOrientationCull = enabled ? 1 : 0;
+}
+
+void Scene::SetFrustumCull(bool enabled) {
+    time.enableFrustumCull = enabled ? 1 : 0;
+}
+
+void Scene::SetDistanceCull(bool enabled) {
+    time.enableDistanceCull = enabled ? 1 : 0;
+}
+
+void Scene::ToggleOrientationCull() {
+    time.enableOrientationCull = time.enableOrientationCull ? 0 : 1;
+}
+
+void Scene::ToggleFrustumCull() {
+    time.enableFrustumCull = time.enableFrustumCull ? 0 : 1;
+}
+
+void Scene::ToggleDistanceCull() {
+    time.enableDistanceCull = time.enableDistanceCull ? 0 : 1;
+}

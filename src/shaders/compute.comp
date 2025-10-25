@@ -12,6 +12,16 @@ layout(set = 0, binding = 0) uniform CameraBufferObject {
 layout(set = 1, binding = 0) uniform Time {
     float deltaTime;
     float totalTime;
+    // Culling toggles
+    int enableOrientationCull;
+    int enableFrustumCull;
+    int enableDistanceCull;
+    // Parameters
+    float orientationThreshold;
+    float frustumTolerance;
+    float maxDistance;
+    int bucketCount;
+    int bladeCount;
 };
 
 struct Blade {
@@ -52,16 +62,12 @@ bool inBounds(float value, float bounds) {
 }
 
 void main() {
-	// Reset the number of blades to 0
-	if (gl_GlobalInvocationID.x == 0) {
-		// For culling stage (later), reset if needed
-		// numBlades.vertexCount = 0;
-	}
-	barrier(); // Wait till all threads reach this point
+    // Note: vertexCount is reset on the command buffer via vkCmdFillBuffer.
+    // No cross-workgroup barrier exists here, so do NOT reset in-shader.
 
     uint i = gl_GlobalInvocationID.x;
     // Guard against over-dispatch
-    if (i >= numBlades.vertexCount) return;
+    if (i >= uint(bladeCount)) return;
 
     Blade b = blades[i];
 
@@ -123,8 +129,68 @@ void main() {
 
     blades[i] = b;
 
-	// TODO: Cull blades that are too far away or not in the camera frustum and write them
-	// to the culled blades buffer
-	// Note: to do this, you will need to use an atomic operation to read and update numBlades.vertexCount
-	// You want to write the visible blades to the buffer without write conflicts between threads
+    // -------------------- Culling tests --------------------
+    bool cull = false;
+
+    // Compute camera position from inverse view
+    mat4 viewInv = inverse(camera.view);
+    vec3 camPos = vec3(viewInv * vec4(0.0, 0.0, 0.0, 1.0));
+
+    // Orientation culling (edge-on), projecting camera dir onto grass plane
+    if (enableOrientationCull != 0) {
+        vec3 dirCamera = (V0 - camPos) - up * dot(V0 - camPos, up); // camera→blade on grass plane
+        vec3 dirBlade = normalize(cross(up, forward));              // blade width direction
+        float d = abs(dot(normalize(dirCamera), dirBlade));
+        if (d > orientationThreshold) {
+            cull = true;
+        }
+    }
+
+    // View-frustum culling using v0, m, and v1 (per reference logic)
+    if (!cull && enableFrustumCull != 0) {
+        vec3 m = (0.25 * V0) + (0.5 * V1) + (0.25 * newV2);
+
+        bool vis0; bool visM; bool vis1;
+        {
+            vec4 clip0 = camera.proj * camera.view * vec4(V0, 1.0);
+            vec4 clipM = camera.proj * camera.view * vec4(m, 1.0);
+            vec4 clip1 = camera.proj * camera.view * vec4(V1, 1.0);
+            float k0 = 1.0 + frustumTolerance;
+            // XY and Z inside checks (Vulkan depth [0,w]) with tolerance
+            vis0 = (clip0.x >= -k0 * clip0.w) && (clip0.x <= k0 * clip0.w) && (clip0.y >= -k0 * clip0.w) && (clip0.y <= k0 * clip0.w) && (clip0.z >= 0.0 - frustumTolerance * clip0.w) && (clip0.z <= k0 * clip0.w);
+            visM = (clipM.x >= -k0 * clipM.w) && (clipM.x <= k0 * clipM.w) && (clipM.y >= -k0 * clipM.w) && (clipM.y <= k0 * clipM.w) && (clipM.z >= 0.0 - frustumTolerance * clipM.w) && (clipM.z <= k0 * clipM.w);
+            vis1 = (clip1.x >= -k0 * clip1.w) && (clip1.x <= k0 * clip1.w) && (clip1.y >= -k0 * clip1.w) && (clip1.y <= k0 * clip1.w) && (clip1.z >= 0.0 - frustumTolerance * clip1.w) && (clip1.z <= k0 * clip1.w);
+        }
+        if (!(vis0 || visM || vis1)) {
+            cull = true;
+        }
+    }
+
+    // Distance culling with buckets and stochastic keep per bucket
+    if (!cull && enableDistanceCull != 0) {
+        float d = distance(camPos, V0);
+        if (d >= maxDistance) {
+            cull = true;
+        } else {
+            int buckets = max(1, bucketCount);
+            float step = maxDistance / float(buckets);
+            int idxBucket = int(floor(d / step));
+            idxBucket = clamp(idxBucket, 0, buckets - 1);
+            float keepProb = 1.0;
+            if (buckets > 1) {
+                keepProb = 1.0 - (float(idxBucket) / float(buckets - 1));
+            }
+            // Deterministic pseudo-random per-blade
+            uint seed = i * 1664525u + 1013904223u;
+            float r = fract(sin(float(seed)) * 43758.5453);
+            if (r > keepProb) {
+                cull = true;
+            }
+        }
+    }
+
+    if (!cull) {
+        uint dst = atomicAdd(numBlades.vertexCount, 1);
+        culled[dst] = b;
+    }
 }

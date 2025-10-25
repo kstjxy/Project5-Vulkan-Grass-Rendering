@@ -11,6 +11,14 @@ using namespace std::chrono;
 struct Time {
     float deltaTime = 0.0f;
     float totalTime = 0.0f;
+    int   enableOrientationCull = 1;
+    int   enableFrustumCull = 1;
+    int   enableDistanceCull = 0;
+    float orientationThreshold = 0.9f;
+    float frustumTolerance = 0.1f;
+    float maxDistance = 50.0f;
+    int   bucketCount = 8;
+    int   bladeCount = NUM_BLADES;
 };
 
 class Scene {
@@ -42,4 +50,15 @@ public:
     VkBuffer GetTimeBuffer() const;
 
     void UpdateTime();
+
+    // Culling toggles
+    void SetOrientationCull(bool enabled);
+    void SetFrustumCull(bool enabled);
+    void SetDistanceCull(bool enabled);
+    void ToggleOrientationCull();
+    void ToggleFrustumCull();
+    void ToggleDistanceCull();
+    bool IsOrientationCull() const { return time.enableOrientationCull != 0; }
+    bool IsFrustumCull() const { return time.enableFrustumCull != 0; }
+    bool IsDistanceCull() const { return time.enableDistanceCull != 0; }
 };
