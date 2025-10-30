@@ -103,6 +103,24 @@ Position- and time-varying wind direction; influence scales with **squared align
   - `Time.maxDistance`  
   - `Time.bucketCount` (more buckets → smoother falloff)  
   - Toggle with **`D`**
+ 
+### Extra Credit — Distance-Based Tessellation LOD
+
+**Goal:** Reduce tessellation work for distant blades while preserving nearby detail.
+
+**Method:** In **TCS**, compute the distance from the camera to each blade base and linearly interpolate tessellation levels between **max** and **min**; set `gl_TessLevel*` accordingly.
+
+**Controls:**
+- `Time.enableLOD`
+- `Time.lodNear` — start of falloff *(default ~ 5.0)*
+- `Time.lodFar` — end of falloff *(default ~ 50.0)*
+- `Time.minTessU` / `Time.maxTessU` — height tessellation range
+- `Time.minTessV` / `Time.maxTessV` — width tessellation range
+
+**Toggle:** Press **`L`**
+
+
+
 
 
 ## Performance Analysis
@@ -140,3 +158,21 @@ This keeps each culling mode’s advantage **stable across grass densities**.
 #### Distance Culling
 - Thins **distant** blades uniformly; reduces tessellation/fragment work while preserving nearby detail.  
 - **1.8–2.5×** improvements at mid/high counts; controlled by `maxDistance` and `bucketCount`.
+
+### LOD (Distance-Based Tessellation)
+
+<img width="1380" height="980" alt="fps_vs_grass_naive_vs_lod" src="https://github.com/user-attachments/assets/5b718d56-bfd5-44f5-87bf-73ca630d2645" />
+
+**Speedup vs. Naive:**
+| Grass Count | Speedup |
+|:---:|:---:|
+| 2¹² | **1.21×** |
+| 2¹⁴ | **1.16×** |
+| 2¹⁶ | **1.28×** |
+| 2¹⁸ | **1.24×** |
+| 2²⁰ | **1.24×** |
+
+- LOD consistently improves performance over the naive baseline by **~20–25%**, especially noticeable at lower and mid-densities.  
+- Gains diminish at higher densities (2¹⁸–2²⁰) since tessellation cost becomes dominated by sheer blade count, but still shows modest benefit.  
+- The best-case improvement appears at **2¹² blades** (+21%) and **2¹⁴ blades** (+15%), where tessellation reduction saves significant vertex work without visible quality loss.
+
