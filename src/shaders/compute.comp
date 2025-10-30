@@ -16,12 +16,20 @@ layout(set = 1, binding = 0) uniform Time {
     int enableOrientationCull;
     int enableFrustumCull;
     int enableDistanceCull;
+    int enableLOD;
     // Parameters
     float orientationThreshold;
     float frustumTolerance;
     float maxDistance;
     int bucketCount;
     int bladeCount;
+    // LOD params
+    float lodNear;
+    float lodFar;
+    float minTessU;
+    float maxTessU;
+    float minTessV;
+    float maxTessV;
 };
 
 struct Blade {

@@ -56,6 +56,10 @@ void Scene::SetDistanceCull(bool enabled) {
     time.enableDistanceCull = enabled ? 1 : 0;
 }
 
+void Scene::SetLOD(bool enabled) {
+    time.enableLOD = enabled ? 1 : 0;
+}
+
 void Scene::ToggleOrientationCull() {
     time.enableOrientationCull = time.enableOrientationCull ? 0 : 1;
 }
@@ -66,4 +70,8 @@ void Scene::ToggleFrustumCull() {
 
 void Scene::ToggleDistanceCull() {
     time.enableDistanceCull = time.enableDistanceCull ? 0 : 1;
+}
+
+void Scene::ToggleLOD() {
+    time.enableLOD = time.enableLOD ? 0 : 1;
 }

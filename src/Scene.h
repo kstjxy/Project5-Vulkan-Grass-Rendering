@@ -14,11 +14,19 @@ struct Time {
     int   enableOrientationCull = 1;
     int   enableFrustumCull = 1;
     int   enableDistanceCull = 0;
+    int   enableLOD = 1;
     float orientationThreshold = 0.9f;
     float frustumTolerance = 0.1f;
     float maxDistance = 50.0f;
     int   bucketCount = 8;
     int   bladeCount = NUM_BLADES;
+    // LOD parameters
+    float lodNear = 5.0f;
+    float lodFar  = 50.0f;
+    float minTessU = 2.0f;
+    float maxTessU = 8.0f;
+    float minTessV = 2.0f;
+    float maxTessV = 4.0f;
 };
 
 class Scene {
@@ -55,10 +63,13 @@ public:
     void SetOrientationCull(bool enabled);
     void SetFrustumCull(bool enabled);
     void SetDistanceCull(bool enabled);
+    void SetLOD(bool enabled);
     void ToggleOrientationCull();
     void ToggleFrustumCull();
     void ToggleDistanceCull();
+    void ToggleLOD();
     bool IsOrientationCull() const { return time.enableOrientationCull != 0; }
     bool IsFrustumCull() const { return time.enableFrustumCull != 0; }
     bool IsDistanceCull() const { return time.enableDistanceCull != 0; }
+    bool IsLOD() const { return time.enableLOD != 0; }
 };

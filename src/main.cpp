@@ -83,6 +83,10 @@ namespace {
                 scene->ToggleDistanceCull();
                 std::cout << "Distance cull: " << (scene->IsDistanceCull() ? "ON" : "OFF") << std::endl;
                 break;
+            case GLFW_KEY_L:
+                scene->ToggleLOD();
+                std::cout << "LOD (tessellation): " << (scene->IsLOD() ? "ON" : "OFF") << std::endl;
+                break;
             default:
                 break;
         }
